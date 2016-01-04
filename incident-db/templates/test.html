@@ -8,8 +8,15 @@
 		<div class="container-fluid">
 			<div class="row">
 				<div class="col-lg-12">
-					<h1>Test</h1>
-					<p> Testing container formats</p>
+                    <h1>Test</h1>
+					<p> Elastic Search is:
+                    {% if res == 200 %}
+                        UP
+                    {% else %}
+                        DOWN
+                    {% endif %}
+                        
+                    </p>
 				</div>
 			</div>
 		</div>
