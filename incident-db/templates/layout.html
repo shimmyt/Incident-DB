@@ -1,3 +1,4 @@
+<!doctype html>
 <HTML>
 	<head>
 		{% block head %}
@@ -7,6 +8,16 @@
 		<link rel="stylesheet" type=text/css href="{{ url_for('static', filename='css/simple-sidebar.css')}}">
 		{% endblock %}
 	</head>
+	{% with messages = get_flashed_messages() %}
+		{% if messages %}
+		<ul class=flashes>
+			{% for message in messages %}
+				<li>{{ message }}</li>
+			{% endfor %}
+		</ul>
+		{% endif %}
+		{% endwith %}
+
 	<body>
 		<div class="navbar-inverse">
 			<div class="container-fluid">
@@ -22,7 +33,7 @@
 						<a href="/test">Test</a>
 					</li>
 					<li>
-						<a href="/test2">Test 2</a>
+						<a href="/eventadd">Add Events</a>
 					</li>
 				</ul>		
 			</div>
