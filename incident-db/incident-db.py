@@ -7,6 +7,8 @@ import requests
 from elasticsearch import Elasticsearch
 
 app = Flask(__name__)
+index_name = 'test'
+doc_type_name = 'event'
 
 @app.route("/")
 def main():
@@ -39,7 +41,7 @@ def add_event_page():
         try:
              results = add_to_event(es, data)
         except Exception as e:
-            flash('indexing failed')
+            flash(e)
             return render_template("addevent.html")
         
         flash('Data added successfully. (id=%s)' %(results['_id']))
@@ -56,6 +58,7 @@ def upload_json():
             try:
                 for data in d:
                     add_to_event(es, data)
+                    
             except:
                 flash("Indexing failed. Check upload file")
                 return render_template("json_upload.html")
@@ -67,7 +70,7 @@ def upload_json():
 def to_json():
     es = Elasticsearch()
     d = []
-    results = es.search(index='test', body={"query": {"match_all": {}}})
+    results = search_event(es)
     for hit in results['hits']['hits']:
         print d.append(hit['_source'])    
     return json.dumps(d)
@@ -77,16 +80,39 @@ def to_json():
 def allowed_file(filename, ALLOWED_EXT):
     return '.' in filename and filename.rsplit('.', 1)[1] in ALLOWED_EXT
 
+def process_data(data):
+    new_data = {}
+    new_data['description'], new_data['date'] , new_data['tags']  = data['description'], data['date'], data['tags']
+    return new_data
+
+def check_index(es):
+    results = es.indices.exists_type(index=index_name, doc_type=doc_type_name)
+    print (results)
+    return results
+
+def search_event(es, query=''):
+    
+    return es.search(index='test', body={"query": {"match_all": {}}})
+    
+    
 def add_to_event(es, data):
-    return es.index(index="test", doc_type='event', id=index_count(es)+1, body=data)
+    #data needs to be processed to only contain certain keys
+    if not check_index(es):
+        count = 1
+    else:
+        count = index_count(es)+1
+            
+    try:
+        data = process_data(data)    
+    except Exception as e:
+        print(e)
+        return false
+            
+    return es.index(index=index_name, doc_type=doc_type_name, id=count, body=data)
     
 
 def index_count(es):
-     return es.count(index='test', doc_type='event')['count'] 
-        
-    
-    
-
+     return es.count(index=index_name, doc_type=doc_type_name)['count'] 
 
 if __name__ == '__main__':
     app.secret_key = '01'
