@@ -1,0 +1,97 @@
+<HTML>
+	{% extends "layout.html" %}
+	{% block title %}Test{% endblock %}
+	{% block head %}
+		{{ super() }}
+        <script src="{{ url_for('static', filename='js/jquery.min.js')}}"> </script>
+		<script src="{{ url_for('static', filename='js/moment.min.js')}}"> </script>
+
+		<script src="{{ url_for('static', filename='js/bootstrap.min.js')}}"> </script>
+		<script src="{{ url_for('static', filename='js/bootstrap-datetimepicker.min.js')}}"> </script>
+		<link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/bootstrap-datetimepicker.min.css') }}">
+	{% endblock %}
+	{% block content %}
+		<div class="container-fluid">
+            <h3>Events</h3>
+                <form action="{{ url_for('event_search') }}" method=post>
+                    <div class="row">
+                        <div class="col-sm-3">
+						<dl>
+							<dt>From:
+							<div id='from_date_picker' class="input-group date">
+							 	<input type="text" class="form-control" name="from_date">
+								<span class="input-group-addon">
+									<span class="glyphicon glyphicon-calendar"></span>
+								</span>
+							</div>
+						</dl>
+					</div>
+					<script type="text/javascript">
+						$(function() {
+							$('#from_date_picker').datetimepicker();
+						});
+					</script>
+                    
+                        <div class="col-sm-3">
+						<dl>
+							<dt>To:
+							<div id='to_date_picker' class="input-group date">
+							 	<input type="text" class="form-control" name="to_date">
+								<span class="input-group-addon">
+									<span class="glyphicon glyphicon-calendar"></span>
+								</span>
+							</div>
+						</dl>
+					</div>
+					<script type="text/javascript">
+						$(function() {
+							$('#to_date_picker').datetimepicker();
+						});
+					</script>
+                            
+                    <div class="col-sm-3">
+						<dl>
+						<dt>Tag:
+						<input type"text" name="tag" class="form-control">
+						</dl>
+					</div>
+                    
+                    </div>
+                            <div class="row">
+                     <div class="col-sm-3">
+						<input type="submit" value="Filter" class="form-control"/>
+					</div>
+                                </div>
+                </form>
+
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thread>
+                            <tr>
+                                <th>ID</th>
+                                <th>Date</th>
+                                <th>Description</th>
+                                <th>Tags</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thread>
+                        <tbody>
+                            {% for row in data: %}
+                            <tr>
+                                <td>{{ row[1] }}</td>
+                                <td>{{ row[0]['date'] }} </td>
+                                <td>{{ row[0]['description'] }}</td>
+                                <td>{% for tag in row[0]['tags']: %}
+                                    <a href="#"><kbd>{{ tag }}</kbd></a>
+                                    {% endfor %}
+                                </td>
+                                <td> <a href="#"><span class="glyphicon glyphicon-remove-circle"></span></a> </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                    
+                </div>                     
+		</div>
+	{% endblock %}
+</HTML>

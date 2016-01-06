@@ -30,17 +30,24 @@
 			<div id="sidebar-wrapper">
 				<ul class="sidebar-nav">
 					<li>
-						<a href="/test">Test</a>
+						<p class="bg-success"></p>
+                        {% if check_status() == 200 %}
+                        <p class="bg-success"><b>ElasticSearch Status: UP</b></p>
+                           
+                        {% else: %}
+                          <p class="bg-danger"><b>ElasticSearch Status: DOWN</b></p>
+                        {% endif %}
 					</li>
 					<li>
 						<a href="/eventadd">Add Events</a>
 					</li>
-					<li>
-						<a href="/json">JSON Dump</a>
-					</li>
+                    <li>
+                        <a href="/event-list">Events</a>
+                    </li>
 					<li>
 						<a href="/json-query">JSON</a>
 					</li>
+
 				</ul>		
 			</div>
 			<div id="page-content-wrapper">

@@ -5,11 +5,13 @@ import sys
 import json
 import re
 import requests
+import dateutil.parser
 from elasticsearch import Elasticsearch
 
 app = Flask(__name__)
 index_name = 'test'
 doc_type_name = 'event'
+#TODO: redirect pages if es is down.
 
 @app.route("/")
 def main():
@@ -34,7 +36,7 @@ def add_event_page():
         if not data['description']:
             data['description'] = "None"
         if not data['date']:
-            data['date'] = datetime.datetime.now().replace(second=0, microsecond=0)#.strftime("%m/%d/%Y %H:%M:%S")            
+            data['date'] = datetime.datetime.now().replace(second=0, microsecond=0)#.strftime("%m/%d/%Y %H:%M")            
         #TODO: add ability to upload json and parse 
         try:
              results = add_to_event(es, data)
@@ -71,6 +73,7 @@ def to_json():
         return "No index. Please index an event"
     results = search_event(es)
     for hit in results['hits']['hits']:
+        hit['_source']['date'] = dateutil.parser.parse(hit['_source']['date']).strftime("%m/%d/%Y %H:%M")
         d.append(hit['_source'])
     return json.dumps(d)
     #return render_template("json.html", data=d)
@@ -81,22 +84,57 @@ def json_query():
         es = Elasticsearch()
         data = {}
         query = []
-        data['from_date'], data['to_date'], data['tags'] = request.form['from_date'], request.form['to_date'], request.form['tags']
-        if data['from_date']:
-            query.append('"gte" : "%s"' %(data['from_date']))
-        if data['to_date']:
-            query.append('"lte" : "%s"' %(data['to_date']))
-        query = ", ".join(query) 
+        data['from_date'], data['to_date'], data['tag'] = request.form['from_date'], request.form['to_date'], request.form['tag']
+
         print(query)
+        #TODO: make this compatible with the search_events method
         results = es.search(index='test', doc_type='event', size=index_count(es), body={"query" : { "range" : {"date" : {"from" : datetime.datetime.strptime(data['from_date'], "%m/%d/%Y %H:%M %p")
 , "to" : datetime.datetime.strptime(data['to_date'], "%m/%d/%Y %H:%M %p")
 }}}})
         d = []
         for hit in results['hits']['hits']:
-            d.append(hit['_source'])
+            hit['_source']['date'] = dateutil.parser.parse(hit['_source']['date']).strftime("%m/%d/%Y %H:%M")
+            if data['tag'] and data['tag'] in hit['_source']['tags']:
+                d.append(hit['_source'])
+
         return json.dumps(d)
         #search_event(es, query)
     return render_template("json_query.html")
+
+
+@app.route("/event-list/", methods=['GET'])
+def event_list():
+    es = Elasticsearch()
+    query = { "range" : { "date" : {}}}
+    if request.args.get('fd'):
+        query['range']['date']['from'] = dateutil.parser.parse(request.args.get('fd'))
+    if request.args.get('td'):
+        query['range']['date']['to'] = dateutil.parser.parse(request.args.get('td'))
+    if request.args.get('tag'):
+        tag = request.args.get('tag')
+    print(query)
+    d = []
+    results = search_event(es, query)
+    for hit in results['hits']['hits']:
+        if not request.args.get('tag') or request.args.get('tag') in hit['_source']['tags']:
+            hit['_source']['date'] = dateutil.parser.parse(hit['_source']['date']).strftime("%m/%d/%Y %H:%M")
+            d.append((hit['_source'], hit['_id']))     
+    return render_template("event_list.html", data=d)
+
+@app.route("/event-search", methods=['POST'])
+def event_search():
+    data = []
+    if request.form['from_date']:
+        data.append("fd=" + datetime.datetime.strptime(request.form['from_date'], "%m/%d/%Y %H:%M %p").isoformat())
+    if request.form['to_date']:
+        data.append("td=" + datetime.datetime.strptime(request.form['to_date'], "%m/%d/%Y %H:%M %p").isoformat())
+    if request.form['tag']:
+        data.append('tag=' + request.form['tag'])
+        uri_string = '&'.join(data)
+        print (data)
+        return redirect("/event-list/?%s" %uri_string)
+    
+
 
     
 '''FROM HERE UNDER SHOULD BE MOVED TO utils.py '''
@@ -116,9 +154,9 @@ def check_index(es):
     results = es.indices.exists_type(index=index_name, doc_type=doc_type_name)
     return results
 
-def search_event(es, query=''):
-    
-    return es.search(index='test', size=index_count(es), body={"query": {"match_all": {}}})
+def search_event(es, query={"match_all" : {}}):
+    print (query)
+    return es.search(index='test', size=index_count(es), body={"query": query})
     
     
 def add_to_event(es, data):
@@ -135,13 +173,19 @@ def add_to_event(es, data):
         return false
     return es.index(index=index_name, doc_type=doc_type_name, id=count, body=data)
     
+def check_status():
+    try:
+        res = requests.get("http://localhost:9200/").status_code
+    except:
+        res = 404
+    return res
 
 def index_count(es):
-    
     es.indices.refresh(index="test")
     return es.count(index=index_name, doc_type=doc_type_name)['count'] 
 
 if __name__ == '__main__':
+    app.jinja_env.globals.update(check_status=check_status)
     app.secret_key = '01'
     app.run(host='0.0.0.0', debug=True)
 
