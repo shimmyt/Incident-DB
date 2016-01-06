@@ -3,6 +3,7 @@ import os
 import datetime
 import sys
 import json
+import re
 import requests
 from elasticsearch import Elasticsearch
 
@@ -33,10 +34,7 @@ def add_event_page():
         if not data['description']:
             data['description'] = "None"
         if not data['date']:
-            data['date'] = datetime.datetime.now()#.strftime("%m/%d/%Y %H:%M:%S")
-        else:
-            data['date'] = datetime.datetime.strptime(data['date'], "%m/%d/%Y %H:%M %p")
-            
+            data['date'] = datetime.datetime.now().replace(second=0, microsecond=0)#.strftime("%m/%d/%Y %H:%M:%S")            
         #TODO: add ability to upload json and parse 
         try:
              results = add_to_event(es, data)
@@ -49,16 +47,15 @@ def add_event_page():
 
 @app.route("/json_upload", methods=['GET', 'POST'])
 def upload_json():
-    es = Elasticsearch()
-    ALLOWED_EXT = set(['json'])
     if request.method == 'POST':
+        es = Elasticsearch()
+        ALLOWED_EXT = set(['json'])
         f = request.files['filez']
         if f and allowed_file(f.filename, ALLOWED_EXT):
-            d = json.loads(f.read().encode("string-escape"))
+            d = json.loads(f.read().decode("utf-8"))#.encode("string-escape"))
             try:
                 for data in d:
                     add_to_event(es, data)
-                    
             except:
                 flash("Indexing failed. Check upload file")
                 return render_template("json_upload.html")
@@ -70,11 +67,37 @@ def upload_json():
 def to_json():
     es = Elasticsearch()
     d = []
+    if not check_index(es):
+        return "No index. Please index an event"
     results = search_event(es)
     for hit in results['hits']['hits']:
-        print d.append(hit['_source'])    
+        d.append(hit['_source'])
     return json.dumps(d)
     #return render_template("json.html", data=d)
+
+@app.route("/json-query", methods=['GET', 'POST'])
+def json_query():
+    if request.method == 'POST':
+        es = Elasticsearch()
+        data = {}
+        query = []
+        data['from_date'], data['to_date'], data['tags'] = request.form['from_date'], request.form['to_date'], request.form['tags']
+        if data['from_date']:
+            query.append('"gte" : "%s"' %(data['from_date']))
+        if data['to_date']:
+            query.append('"lte" : "%s"' %(data['to_date']))
+        query = ", ".join(query) 
+        print(query)
+        results = es.search(index='test', doc_type='event', size=index_count(es), body={"query" : { "range" : {"date" : {"from" : datetime.datetime.strptime(data['from_date'], "%m/%d/%Y %H:%M %p")
+, "to" : datetime.datetime.strptime(data['to_date'], "%m/%d/%Y %H:%M %p")
+}}}})
+        d = []
+        for hit in results['hits']['hits']:
+            d.append(hit['_source'])
+        return json.dumps(d)
+        #search_event(es, query)
+    return render_template("json_query.html")
+
     
 '''FROM HERE UNDER SHOULD BE MOVED TO utils.py '''
 def allowed_file(filename, ALLOWED_EXT):
@@ -82,37 +105,41 @@ def allowed_file(filename, ALLOWED_EXT):
 
 def process_data(data):
     new_data = {}
-    new_data['description'], new_data['date'] , new_data['tags']  = data['description'], data['date'], data['tags']
+    new_data['description'] = data['description']
+    # Fixing date to be a datetime format.
+    new_data['date'] = datetime.datetime.strptime(data['date'], "%m/%d/%Y %H:%M %p")
+    # Fixing tags to be delimited by a comma. 
+    new_data['tags'] = re.split('; |;', data['tags'])
     return new_data
 
 def check_index(es):
     results = es.indices.exists_type(index=index_name, doc_type=doc_type_name)
-    print (results)
     return results
 
 def search_event(es, query=''):
     
-    return es.search(index='test', body={"query": {"match_all": {}}})
+    return es.search(index='test', size=index_count(es), body={"query": {"match_all": {}}})
     
     
 def add_to_event(es, data):
     #data needs to be processed to only contain certain keys
+
     if not check_index(es):
         count = 1
     else:
-        count = index_count(es)+1
-            
+        count = index_count(es)+1 
     try:
         data = process_data(data)    
     except Exception as e:
         print(e)
         return false
-            
     return es.index(index=index_name, doc_type=doc_type_name, id=count, body=data)
     
 
 def index_count(es):
-     return es.count(index=index_name, doc_type=doc_type_name)['count'] 
+    
+    es.indices.refresh(index="test")
+    return es.count(index=index_name, doc_type=doc_type_name)['count'] 
 
 if __name__ == '__main__':
     app.secret_key = '01'
