@@ -82,44 +82,53 @@ def to_json():
 def json_query():
     if request.method == 'POST':
         es = Elasticsearch()
-        data = {}
-        query = []
-        data['from_date'], data['to_date'], data['tag'] = request.form['from_date'], request.form['to_date'], request.form['tag']
-
-        print(query)
-        #TODO: make this compatible with the search_events method
-        results = es.search(index='test', doc_type='event', size=index_count(es), body={"query" : { "range" : {"date" : {"from" : datetime.datetime.strptime(data['from_date'], "%m/%d/%Y %H:%M %p")
-, "to" : datetime.datetime.strptime(data['to_date'], "%m/%d/%Y %H:%M %p")
-}}}})
         d = []
+        query = {"range" : { "date" : {}}}
+        print (request.form['from_date'])
+        if request.form['from_date']:
+            query['range']['date']['from'] = datetime.datetime.strptime(request.form['from_date'], "%m/%d/%Y %H:%M %p")
+        if request.form['to_date']:
+            query['range']['date']['to'] = datetime.datetime.strptime(request.form['to_date'], "%m/%d/%Y %H:%M %p")
+        results = search_event(es, query)
+        
+        #TODO: make this compatible with the search_events method
+        #results = es.search(index='test', doc_type='event', size=index_count(es), body={"query" : { "range" : {"date" : {"from" : datetime.datetime.strptime(data['from_date'], "%m/%d/%Y %H:%M %p"), "to" : datetime.datetime.strptime(data['to_date'], "%m/%d/%Y %H:%M %p")}}}})
+        
         for hit in results['hits']['hits']:
             hit['_source']['date'] = dateutil.parser.parse(hit['_source']['date']).strftime("%m/%d/%Y %H:%M")
-            if data['tag'] and data['tag'] in hit['_source']['tags']:
+            if not request.form['tag'] or request.form['tag'] in hit['_source']['tags']:
                 d.append(hit['_source'])
-
         return json.dumps(d)
-        #search_event(es, query)
+
     return render_template("json_query.html")
 
 
 @app.route("/event-list/", methods=['GET'])
 def event_list():
     es = Elasticsearch()
+    d = []
+    q = {'from_date': '', 'to_date': '', 'tag' : ''}
     query = { "range" : { "date" : {}}}
     if request.args.get('fd'):
         query['range']['date']['from'] = dateutil.parser.parse(request.args.get('fd'))
+        q['from_date'] = dateutil.parser.parse(request.args.get('fd')).strftime("%m/%d/%Y %H:%M") 
+
     if request.args.get('td'):
         query['range']['date']['to'] = dateutil.parser.parse(request.args.get('td'))
+        q['to_date'] = dateutil.parser.parse(request.args.get('td')).strftime("%m/%d/%Y %H:%M")
+
     if request.args.get('tag'):
-        tag = request.args.get('tag')
-    print(query)
-    d = []
+        q['tag'] =  request.args.get('tag')
+
+        
     results = search_event(es, query)
+    if not results:
+        return("No index")
     for hit in results['hits']['hits']:
-        if not request.args.get('tag') or request.args.get('tag') in hit['_source']['tags']:
+        if not q['tag'] or q['tag'] in hit['_source']['tags']:
             hit['_source']['date'] = dateutil.parser.parse(hit['_source']['date']).strftime("%m/%d/%Y %H:%M")
             d.append((hit['_source'], hit['_id']))     
-    return render_template("event_list.html", data=d)
+    return render_template("event_list.html", data=d, q=q)
 
 @app.route("/event-search", methods=['POST'])
 def event_search():
@@ -130,9 +139,9 @@ def event_search():
         data.append("td=" + datetime.datetime.strptime(request.form['to_date'], "%m/%d/%Y %H:%M %p").isoformat())
     if request.form['tag']:
         data.append('tag=' + request.form['tag'])
-        uri_string = '&'.join(data)
-        print (data)
-        return redirect("/event-list/?%s" %uri_string)
+    uri_string = '&'.join(data)
+    print (data)
+    return redirect("/event-list/?%s" %(uri_string))
     
 
 
@@ -155,8 +164,10 @@ def check_index(es):
     return results
 
 def search_event(es, query={"match_all" : {}}):
-    print (query)
-    return es.search(index='test', size=index_count(es), body={"query": query})
+    if check_index(es):
+        return es.search(index=index_name, size=index_count(es), body={"query": query})
+    else:
+        return(False)
     
     
 def add_to_event(es, data):
@@ -181,7 +192,7 @@ def check_status():
     return res
 
 def index_count(es):
-    es.indices.refresh(index="test")
+    es.indices.refresh(index=index_name)
     return es.count(index=index_name, doc_type=doc_type_name)['count'] 
 
 if __name__ == '__main__':

@@ -19,7 +19,7 @@
 						<dl>
 							<dt>From:
 							<div id='from_date_picker' class="input-group date">
-							 	<input type="text" class="form-control" name="from_date">
+							 	<input type="text" class="form-control" name="from_date" value={{ q['from_date'] }}>
 								<span class="input-group-addon">
 									<span class="glyphicon glyphicon-calendar"></span>
 								</span>
@@ -36,7 +36,7 @@
 						<dl>
 							<dt>To:
 							<div id='to_date_picker' class="input-group date">
-							 	<input type="text" class="form-control" name="to_date">
+							 	<input type="text" class="form-control" name="to_date" value={{ q['to_date']}}>
 								<span class="input-group-addon">
 									<span class="glyphicon glyphicon-calendar"></span>
 								</span>
@@ -52,7 +52,7 @@
                     <div class="col-sm-3">
 						<dl>
 						<dt>Tag:
-						<input type"text" name="tag" class="form-control">
+						<input type"text" name="tag" class="form-control" value={{ q['tag'] }}>
 						</dl>
 					</div>
                     
@@ -72,7 +72,7 @@
                                 <th>Date</th>
                                 <th>Description</th>
                                 <th>Tags</th>
-                                <th>Actions</th>
+                                
                             </tr>
                         </thread>
                         <tbody>
@@ -82,10 +82,10 @@
                                 <td>{{ row[0]['date'] }} </td>
                                 <td>{{ row[0]['description'] }}</td>
                                 <td>{% for tag in row[0]['tags']: %}
-                                    <a href="#"><kbd>{{ tag }}</kbd></a>
+                                    <a href="#"><kbd style="background-color:#2E9AFE">{{ tag }}</kbd></a>
                                     {% endfor %}
                                 </td>
-                                <td> <a href="#"><span class="glyphicon glyphicon-remove-circle"></span></a> </td>
+                                
                             </tr>
                             {% endfor %}
                         </tbody>
