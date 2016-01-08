@@ -1,5 +1,6 @@
 from flask import *
 import os
+import time
 import datetime
 import sys
 import json
@@ -36,7 +37,7 @@ def add_event_page():
         if not data['description']:
             data['description'] = "None"
         if not data['date']:
-            data['date'] = datetime.datetime.now().replace(second=0, microsecond=0)#.strftime("%m/%d/%Y %H:%M")            
+            data['date'] = time.mktime(datetime.datetime.now().replace(second=0, microsecond=0))#.strftime("%m/%d/%Y %H:%M")            
         #TODO: add ability to upload json and parse 
         try:
              results = add_to_event(es, data)
@@ -73,7 +74,7 @@ def to_json():
         return "No index. Please index an event"
     results = search_event(es)
     for hit in results['hits']['hits']:
-        hit['_source']['date'] = dateutil.parser.parse(hit['_source']['date']).strftime("%m/%d/%Y %H:%M")
+        hit['_source']['date'] = datetime.datetime.fromtimestamp(int(hit['_source']['date'])).strftime("%m/%d/%Y %H:%M")
         d.append(hit['_source'])
     return json.dumps(d)
     #return render_template("json.html", data=d)
@@ -86,16 +87,16 @@ def json_query():
         query = {"range" : { "date" : {}}}
         print (request.form['from_date'])
         if request.form['from_date']:
-            query['range']['date']['from'] = datetime.datetime.strptime(request.form['from_date'], "%m/%d/%Y %H:%M %p")
+            query['range']['date']['from'] = time.mktime(datetime.datetime.strptime(request.form['from_date'], "%m/%d/%Y %H:%M").timetuple())
         if request.form['to_date']:
-            query['range']['date']['to'] = datetime.datetime.strptime(request.form['to_date'], "%m/%d/%Y %H:%M %p")
+            query['range']['date']['to'] = time.mktime(datetime.datetime.strptime(request.form['to_date'], "%m/%d/%Y %H:%M").timetuple())
         results = search_event(es, query)
         
         #TODO: make this compatible with the search_events method
         #results = es.search(index='test', doc_type='event', size=index_count(es), body={"query" : { "range" : {"date" : {"from" : datetime.datetime.strptime(data['from_date'], "%m/%d/%Y %H:%M %p"), "to" : datetime.datetime.strptime(data['to_date'], "%m/%d/%Y %H:%M %p")}}}})
         
         for hit in results['hits']['hits']:
-            hit['_source']['date'] = dateutil.parser.parse(hit['_source']['date']).strftime("%m/%d/%Y %H:%M")
+            hit['_source']['date'] = datetime.datetime.fromtimestamp(int(hit['_source']['date'])).strftime("%m/%d/%Y %H:%M")
             if not request.form['tag'] or request.form['tag'] in hit['_source']['tags']:
                 d.append(hit['_source'])
         return json.dumps(d)
@@ -110,13 +111,12 @@ def event_list():
     q = {'from_date': '', 'to_date': '', 'tag' : ''}
     query = { "range" : { "date" : {}}}
     if request.args.get('fd'):
-        query['range']['date']['from'] = dateutil.parser.parse(request.args.get('fd'))
-        q['from_date'] = dateutil.parser.parse(request.args.get('fd')).strftime("%m/%d/%Y %H:%M") 
+        q['from_date'] = datetime.datetime.fromtimestamp(int(request.args.get('fd'))).strftime("%m/%d/%Y %H:%M")
+        query['range']['date']['from'] = q['from_date']
 
     if request.args.get('td'):
-        query['range']['date']['to'] = dateutil.parser.parse(request.args.get('td'))
-        q['to_date'] = dateutil.parser.parse(request.args.get('td')).strftime("%m/%d/%Y %H:%M")
-
+        q['to_date'] = datetime.datetime.fromtimestamp(int(request.args.get('td'))).strftime("%m/%d/%Y %H:%M")
+        query['range']['date']['to'] = q['to_date']
     if request.args.get('tag'):
         q['tag'] =  request.args.get('tag')
 
@@ -126,7 +126,7 @@ def event_list():
         return("No index")
     for hit in results['hits']['hits']:
         if not q['tag'] or q['tag'] in hit['_source']['tags']:
-            hit['_source']['date'] = dateutil.parser.parse(hit['_source']['date']).strftime("%m/%d/%Y %H:%M")
+            hit['_source']['date'] = datetime.datetime.fromtimestamp(int(hit['_source']['date'])).strftime("%m/%d/%Y %H:%M")
             d.append((hit['_source'], hit['_id']))     
     return render_template("event_list.html", data=d, q=q)
 
@@ -134,9 +134,9 @@ def event_list():
 def event_search():
     data = []
     if request.form['from_date']:
-        data.append("fd=" + datetime.datetime.strptime(request.form['from_date'], "%m/%d/%Y %H:%M %p").isoformat())
+        data.append("fd=" + time.mktime(datetime.datetime.strptime(request.form['from_date'], "%m/%d/%Y %H:%M").timetuple()))
     if request.form['to_date']:
-        data.append("td=" + datetime.datetime.strptime(request.form['to_date'], "%m/%d/%Y %H:%M %p").isoformat())
+        data.append("td=" + time.mktime(datetime.datetime.strptime(request.form['to_date'], "%m/%d/%Y %H:%M").timetuple()))
     if request.form['tag']:
         data.append('tag=' + request.form['tag'])
     uri_string = '&'.join(data)
@@ -154,7 +154,7 @@ def process_data(data):
     new_data = {}
     new_data['description'] = data['description']
     # Fixing date to be a datetime format.
-    new_data['date'] = datetime.datetime.strptime(data['date'], "%m/%d/%Y %H:%M %p")
+    new_data['date'] = time.mktime(datetime.datetime.strptime(data['date'], "%m/%d/%Y %H:%M").timetuple())
     # Fixing tags to be delimited by a comma. 
     new_data['tags'] = re.split('; |;', data['tags'])
     return new_data
