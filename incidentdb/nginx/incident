@@ -1,6 +1,6 @@
 server {
 	listen 80;
-	server_name incident.epikex.com;
+	server_name localhost;
 	
 	location / {
 		include uwsgi_params;
