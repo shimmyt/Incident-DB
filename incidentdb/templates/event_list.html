@@ -82,7 +82,7 @@
                                 <td>{{ row[0]['date'] }} </td>
                                 <td>{{ row[0]['description'] }}</td>
                                 <td>{% for tag in row[0]['tags']: %}
-                                    <a href="#"><kbd style="background-color:#2E9AFE">{{ tag }}</kbd></a>
+					<a href="/event-list/?tag={{tag}}"><kbd style="background-color:#2E9AFE">{{ tag }}</kbd></a>
                                     {% endfor %}
                                 </td>
                                 

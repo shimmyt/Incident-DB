@@ -48,7 +48,7 @@ def add_event_page():
         if not data['description']:
             data['description'] = "None"
         if not data['date']:
-            data['date'] = time.mktime(datetime.datetime.now().replace(second=0, microsecond=0))      
+            data['date'] = datetime.datetime.now().replace(second=0, microsecond=0).strftime("%m/%d/%Y %H:%M")    
         try:
              results = add_to_event(es, data)
         except Exception as e:
@@ -163,9 +163,6 @@ Filters out events
 @app.route("/event-search", methods=['POST'])
 def event_search():
     data = []
-    x = 'fd='
-    x = x + str(time.mktime(datetime.datetime.strptime(str(request.form['from_date']), "%m/%d/%Y %H:%M").timetuple()))
-    print(x) 
     if request.form['from_date']:
         data.append("fd=" + str(time.mktime(datetime.datetime.strptime(str(request.form['from_date']), "%m/%d/%Y %H:%M").timetuple())))
     if request.form['to_date']:
@@ -187,7 +184,7 @@ def process_data(data):
     new_data = {}
     new_data['description'] = data['description']
     # Fixing date to be a datetime format.
-    new_data['date'] = time.mktime(datetime.datetime.strptime(data['date'], "%m/%d/%Y %H:%M %p").timetuple())
+    new_data['date'] = time.mktime(datetime.datetime.strptime(data['date'], "%m/%d/%Y %H:%M").timetuple())
     # Fixing tags to be delimited by a comma. 
     new_data['tags'] = re.split('; |;', data['tags'])
     return new_data
@@ -214,7 +211,7 @@ def add_to_event(es, data):
         data = process_data(data)    
     except Exception as e:
         print(e)
-        return false
+        return False
     return es.index(index=index_name, doc_type=doc_type_name, id=count, body=data)
 @app.context_processor
 def check_status():
