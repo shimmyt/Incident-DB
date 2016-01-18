@@ -12,10 +12,10 @@ import logging
 
 
 
-app = Flask(__name__, template_folder='/home/epikapa/ws/work/incident-db/incidentdb/templates')
+app = Flask(__name__, template_folder='templates')
 
 app.secret_key = '0FS21'
-index_name = 'test'
+index_name = 'incidentdb'
 doc_type_name = 'event'
 #TODO: redirect pages if es is down.
 
