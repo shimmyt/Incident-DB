@@ -95,6 +95,25 @@ def to_json():
         d.append(hit['_source'])
     return json.dumps(d)
 
+@app.route("/api/v1.0/events", methods=['POST'])
+def create_event():
+    es = Elasticsearch()
+    data = {}
+    data['description'], data['date'], data['tags'] = request.json['description'], request.json['date'], request.json['tags']
+    
+    # if nothing was supplied, give defaults
+    if not data['description']:
+        data['description'] = "None"
+    if not data['date']:
+        data['date'] = datetime.datetime.now().replace(second=0, microsecond=0).strftime("%m/%d/%Y %H:%M")    
+
+    try:
+        results = add_to_event(es, data)
+    except Exception as e:
+        return (e.args)
+
+    return "data added successfully. (id=%s)" %(results['_id'])
+
 '''
 Queries a Json dump
 '''
@@ -185,8 +204,13 @@ def process_data(data):
     new_data['description'] = data['description']
     # Fixing date to be a datetime format.
     new_data['date'] = time.mktime(datetime.datetime.strptime(data['date'], "%m/%d/%Y %H:%M").timetuple())
-    # Fixing tags to be delimited by a comma. 
-    new_data['tags'] = re.split('; |;', data['tags'])
+    # Fixing tags to be delimited by a comma.
+    if isinstance(data['tags'],list):
+        #print "it's a dictionary!"
+        new_data['tags'] = data['tags']
+    else:
+        #print "Not a dictionary, normal processing will commence"
+        new_data['tags'] = re.split('; |;', data['tags'])
     return new_data
 
 def check_index(es):
@@ -202,13 +226,13 @@ def search_event(es, query={"match_all" : {}}):
     
 def add_to_event(es, data):
     #data needs to be processed to only contain certain keys
-
     if not check_index(es):
         count = 1
     else:
         count = index_count(es)+1 
+        print count
     try:
-        data = process_data(data)    
+        data = process_data(data)
     except Exception as e:
         print(e)
         return False
