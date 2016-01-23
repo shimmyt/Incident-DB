@@ -1,0 +1,86 @@
+<HTML>
+	{% extends "layout.html" %}
+	{% block title %}Json Query{% endblock %}
+	{% block head %}
+		{{ super() }}
+
+		<script src="{{ url_for('static', filename='js/jquery.min.js')}}"> </script>
+		<script src="{{ url_for('static', filename='js/moment.min.js')}}"> </script>
+
+		<script src="{{ url_for('static', filename='js/bootstrap.min.js')}}"> </script>
+		<script src="{{ url_for('static', filename='js/bootstrap-datetimepicker.min.js')}}"> </script>
+		<link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/bootstrap-datetimepicker.min.css') }}">
+		
+		{% endblock %}
+	{% block content %}
+		<div class="container-fluid">
+			<h3>JSON Query</h3>
+			<form action="{{ url_for('json_query') }}" method=post>
+				<div class="form-group">
+				<div class="row">
+					<div class="col-sm-5">
+						<dl>
+							<dt>From:
+							<div id='from_date_picker' class="input-group date">
+							 	<input type="text" class="form-control" name="from_date">
+								<span class="input-group-addon">
+									<span class="glyphicon glyphicon-calendar"></span>
+								</span>
+							</div>
+						</dl>
+					</div>
+					<script type="text/javascript">
+						$(function() {
+							$('#from_date_picker').datetimepicker({format: 'MM/D/YYYY HH:mm'});
+						});
+					</script>
+					<div class="col-sm-5">
+						<dl>	
+							<dt>To:
+							<div id='to_date_picker' class="input-group date">
+								<input type="text" class="form-control" name="to_date">
+								<span class="input-group-addon">
+									<span class="glyphicon glyphicon-calendar"></span>
+								</span>
+							</div>
+						</dl>
+					</div>
+					<script type="text/javascript">
+						$(function() {
+							$('#to_date_picker').datetimepicker({format: 'MM/D/YYYY HH:mm'});
+						});
+					</script>	
+				</div>
+
+<!--Don't need this maybe.
+				<div class="row">
+					<div class="col-sm-12">
+	 					<dl>
+							<dt>Description:
+							<textarea type="text" rows=4 class="form-control" name=description></textarea>
+						</dl>
+					</div>
+				</div>
+-->
+				<div class="row">
+					<div class="col-lg-12">
+						<dl>
+						<dt>Tags:
+						<input type"text" name="tag" class="form-control">
+						</dl>
+					</div>
+				</div>
+
+				<div class="row">
+					<div class="col-sm-3">
+						<dd><input type="submit" value="Get JSON" class="form-control"/>
+					</div>
+				</div>
+				</div>
+     
+			</form>
+
+		</div>
+	{% endblock %}
+</HTML>
+
