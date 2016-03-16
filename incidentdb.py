@@ -1,10 +1,11 @@
 from flask import *
-import os
 import time
+import config
 import datetime
 import sys
 import json
 import re
+import math
 import requests
 import dateutil.parser
 from elasticsearch import Elasticsearch
@@ -14,9 +15,9 @@ import logging
 
 app = Flask(__name__, template_folder='templates')
 
-app.secret_key = '0FS21'
-index_name = 'incidentdb'
-doc_type_name = 'event'
+app.secret_key = config.secret_key
+index_name = config.index_name
+doc_type_name = config.doc_type_name
 #TODO: redirect pages if es is down.
 
 @app.route("/")
@@ -29,7 +30,8 @@ Used for checking status of elasticsearch
 @app.route("/test")
 def test():
     try:
-        res = requests.get("http://localhost:9200/").status_code
+        # res = requests.get(config.elastic_search_url + config.elastic_search_port).status_code
+	res = requests.get(config.elastic_full_url).status_code
     except:
         res = 404
     return render_template("test.html", res=res)
@@ -40,7 +42,7 @@ Adds events
 @app.route("/eventadd", methods=['GET', 'POST'])
 def add_event_page():
     if request.method == 'POST':
-        es = Elasticsearch()
+        es = Elasticsearch([config.elastic_full_url])
         data = {}
         data['description'], data['date'], data['tags'] = request.form['description'], request.form['date'], request.form['tags']
         
@@ -54,7 +56,6 @@ def add_event_page():
         except Exception as e:
             flash(e)
             return render_template("addevent.html")
-        
         flash('Data added successfully. (id=%s)' %(results['_id']))
     return render_template("addevent.html")
 
@@ -64,7 +65,7 @@ Uploads json and attempts parse
 @app.route("/json_upload", methods=['GET', 'POST'])
 def upload_json():
     if request.method == 'POST':
-        es = Elasticsearch()
+        es = Elasticsearch([config.elastic_full_url])
         ALLOWED_EXT = set(['json'])
         f = request.files['filez']
         if f and allowed_file(f.filename, ALLOWED_EXT):
@@ -75,7 +76,6 @@ def upload_json():
             except:
                 flash("Indexing failed. Check upload file")
                 return render_template("json_upload.html")
-
         flash("File successfully indexed")
     return render_template("json_upload.html")
 
@@ -85,7 +85,7 @@ Returns JSON dump
 
 @app.route("/json", methods=['GET', 'POST'])
 def to_json():
-    es = Elasticsearch()
+    es = Elasticsearch([config.elastic_full_url])
     d = []
     if not check_index(es):
         return "No index. Please index an event"
@@ -97,7 +97,7 @@ def to_json():
 
 @app.route("/api/v1.0/events", methods=['POST'])
 def create_event():
-    es = Elasticsearch()
+    es = Elasticsearch([config.elastic_full_url])
     data = {}
     data['description'], data['date'], data['tags'] = request.json['description'], request.json['date'], request.json['tags']
     
@@ -121,24 +121,20 @@ Queries a Json dump
 @app.route("/json-query", methods=['GET', 'POST'])
 def json_query():
     if request.method == 'POST':
-        es = Elasticsearch()
+        es = Elasticsearch([config.elastic_full_url])
         d = []
         query = {"range" : { "date" : {}}}
-        print (request.form['from_date'])
         if request.form['from_date']:
             query['range']['date']['from'] = time.mktime(datetime.datetime.strptime(request.form['from_date'], "%m/%d/%Y %H:%M").timetuple())
         if request.form['to_date']:
             query['range']['date']['to'] = time.mktime(datetime.datetime.strptime(request.form['to_date'], "%m/%d/%Y %H:%M").timetuple())
         results = search_event(es, query)
-        
         #TODO: make this compatible with the search_events method
-               
         for hit in results['hits']['hits']:
             hit['_source']['date'] = datetime.datetime.fromtimestamp(int(hit['_source']['date'])).strftime("%m/%d/%Y %H:%M")
             if not request.form['tag'] or request.form['tag'] in hit['_source']['tags']:
                 d.append(hit['_source'])
         return json.dumps(d)
-
     return render_template("json_query.html")
 
 '''
@@ -146,10 +142,17 @@ Lists out events
 '''
 @app.route("/event-list/", methods=['GET'])
 def event_list():
-    es = Elasticsearch()
+
+    es = Elasticsearch([config.elastic_full_url])
     d = []
-    q = {'from_date': '', 'to_date': '', 'tag' : ''}
+    #defaults entry count to 100. TODO This can be updated later to show more or less
+    entries_per_page = 100
+    page_range = 0
+    q = {'from_date': '', 'to_date': '', 'tag' : '', 'page' : '1'}
     query = { "range" : { "date" : {}}}
+    if request.args.get('page'):
+        page_range = (int(request.args.get('page'))-1) * entries_per_page
+
     if request.args.get('fd'):
         q['from_date'] = float(request.args.get('fd'))
         query['range']['date']['from'] = q['from_date']
@@ -159,12 +162,15 @@ def event_list():
         query['range']['date']['to'] = q['to_date']
     if request.args.get('tag'):
         q['tag'] =  request.args.get('tag')
+    if request.args.get('page'):
+        q['page'] = request.args.get('page')
 
-    print(q) 
     results = search_event(es, query)
+    results = results['hits']['hits']
+        
     if not results:
         return("No index")
-    for hit in results['hits']['hits']:
+    for hit in results:
         if not q['tag'] or q['tag'] in hit['_source']['tags']:
             hit['_source']['date'] = datetime.datetime.fromtimestamp(float(hit['_source']['date'])).strftime("%m/%d/%Y %H:%M")
             d.append((hit['_source'], hit['_id']))
@@ -172,9 +178,10 @@ def event_list():
         q['from_date'] = datetime.datetime.fromtimestamp(q['from_date']).strftime("%m/%d/%Y %H:%M")
     if q['to_date']:
         q['to_date'] = datetime.datetime.fromtimestamp(q['to_date']).strftime("%m/%d/%Y %H:%M")
-    d = sorted(d, key=lambda id: int(id[1]))
-    print(q)
-    return render_template("event_list.html", data=d, q=q)
+    page_count = math.ceil(len(d) / entries_per_page)
+    d = d[page_range:page_range + entries_per_page]
+    #d = sorted(d, key=lambda id: int(id[1]))
+    return render_template("event_list.html", data=d, q=q, pc=page_count)
 
 '''
 Filters out events
@@ -182,14 +189,18 @@ Filters out events
 @app.route("/event-search", methods=['POST'])
 def event_search():
     data = []
+    page_number = '1'
+
     if request.form['from_date']:
         data.append("fd=" + str(time.mktime(datetime.datetime.strptime(str(request.form['from_date']), "%m/%d/%Y %H:%M").timetuple())))
     if request.form['to_date']:
         data.append("td=" + str(time.mktime(datetime.datetime.strptime(str(request.form['to_date']), "%m/%d/%Y %H:%M").timetuple())))
     if request.form['tag']:
         data.append('tag=' + request.form['tag'])
+    if request.form['page']:
+        page_number = request.form['page']
+    data.append('page=' + request.form['page'])
     uri_string = '&'.join(data)
-    print (data)
     return redirect("/event-list/?%s" %(uri_string))
     
 
@@ -219,7 +230,7 @@ def check_index(es):
 
 def search_event(es, query={"match_all" : {}}):
     if check_index(es):
-        return es.search(index=index_name, size=index_count(es), body={"query": query})
+        return es.search(index=index_name, size=index_count(es), body={"query": query}, sort='date:desc')
     else:
         return(False)
     
@@ -230,7 +241,6 @@ def add_to_event(es, data):
         count = 1
     else:
         count = index_count(es)+1 
-        print count
     try:
         data = process_data(data)
     except Exception as e:
@@ -240,7 +250,8 @@ def add_to_event(es, data):
 @app.context_processor
 def check_status():
     try:
-        res = requests.get("http://localhost:9200/").status_code
+        # res = requests.get(config.elastic_search_url+config.elastic_search_port).status_code
+	res = requests.get(config.elastic_full_url).status_code
         return dict(status=res)
     except:
         res = 404
@@ -252,5 +263,4 @@ def index_count(es):
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', debug=True)
-
 
